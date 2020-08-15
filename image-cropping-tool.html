@@ -1,0 +1,222 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <!-- TODO: Analytics should go here if required. -->
+
+  <title>Online bulk image cropping tool (free)</title>
+
+  <meta name="description" content="A free tool to bulk crop and resize images using a custom crop mask for each image.">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- TODO: Link to your favicon or remove line. -->
+  <link rel="icon" href="/favicon.png">
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uikit@3.5.6/dist/css/uikit.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.7/cropper.min.css" integrity="sha512-oG+0IPCSL2awaygM/2l1hPUgHDNnOWji9utPHodoAGbXwLH9yvgD7uRjFxdiKnDr+rx8ejxXYSsUBkcKFR7i0w==" crossorigin="anonymous" />
+
+  <style>
+    .uk-container {
+      margin-top: 20px;
+      margin-bottom: 20px;
+    }
+
+    #image-cropper img {
+        display: block;
+        max-width: 100%;
+    }
+  </style>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/uikit@3.5.6/dist/js/uikit.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/uikit@3.5.6/dist/js/uikit-icons.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.11"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.7/cropper.min.js" integrity="sha512-N4T9zTrqZUWCEhVU2uD0m47ADCWYRfEGNQ+dx/lYdQvOn+5FJZxcyHOY68QKsjTEC7Oa234qhXFhjPGQu6vhqg==" crossorigin="anonymous"></script>
+
+  <script>
+    $(document).ready(function() {
+      var cropper = null;
+      var cropapp = new Vue({
+        el: '#myapp',
+        data: {
+            aspectRatioWidth: 1200,
+            aspectRatioHeight: 1000,
+            sizeMode: 'atMost',
+            width: 1200,
+            height: 1000,
+            imageIndex: -1,
+            fileQueue: [],
+            completedList: []
+        },
+        methods: {
+            isValidAspectRatio: function() {
+                return true; // TODO
+            },
+            isValidSize: function() {
+                return true; // TODO
+            },
+            haveImages: function() {
+                return this.fileQueue.length > 0;
+            },
+            isHavePrev: function() {
+                return this.imageIndex > 0;
+            },
+            isHaveNext: function() {
+                return this.haveImages() && this.imageIndex < this.fileQueue.length - 1;
+            },
+            updateFileQueue: function() {
+                var files = $('#files')[0].files;
+                for (var i = 0; i < files.length; i++) {
+                    this.fileQueue.push({ file: files[i], data: null });
+                }
+            },
+            prevImage: function() {
+               this.nextImage(-1);
+            },
+            nextImage: function(incr) {
+                if (cropper) {
+                    var dt = cropper.getData();
+                    this.fileQueue[this.imageIndex].data = dt;
+                    cropper.destroy();
+                }
+
+                this.imageIndex += incr;
+                var imageFile = this.fileQueue[this.imageIndex].file;
+                var imageData = this.fileQueue[this.imageIndex].data;
+
+                var fr = new FileReader();
+                var img = new Image();
+
+                fr.onload = function(e) {
+                  img.src = e.target.result;
+                }
+
+                img.onload = function() {
+                     cropper = new Cropper(img, {
+                        viewMode: 2,
+                        aspectRatio: cropapp.aspectRatioWidth / cropapp.aspectRatioHeight,
+                        data: imageData
+                     });
+                }
+
+                fr.readAsDataURL(imageFile);
+
+                $('#image-cropper').empty();
+                $('#image-cropper').append(img);
+            }
+        },
+        watch: {
+           width: function() {
+               this.aspectRatioWidth = this.width;
+               this.aspectRatioHeight = this.height;
+           },
+           height: function() {
+               this.aspectRatioWidth = this.width;
+               this.aspectRatioHeight = this.height;
+           }
+
+        }
+      });
+    });
+  </script>
+</head>
+<body>
+  <div class="uk-container" id="myapp">
+    <div class="uk-card uk-card-body uk-card-default uk-card-small uk-margin-top">
+        <div class="uk-card-badge uk-label uk-label-danger">Required</div>
+    
+        <div class="uk-card-header">
+          <h2 class="uk-card-title">1. Select images to crop / resize</h2>
+        </div>
+    
+        <div class="uk-card-body">
+            <p>Select as many images as you like from your computer. They are not uploaded to a server (cropping is done in the browser).</p>
+            <p>If you have a low-memory device (eg. iPhone), you may wish to process the images in batches.</p>
+  
+            <input type="file" id="files" multiple="" accept="image/*" v-on:change="updateFileQueue" />
+        </div>
+    
+        <div class="uk-card-footer">
+          <span v-if="haveImages()" class="uk-badge uk-label uk-label-success"><span uk-icon="check"></span> Success: Scroll down</span>
+        </div>
+    </div>
+
+    <div class="uk-card uk-card-body uk-card-default uk-card-small uk-margin-top">
+        <div class="uk-card-badge uk-label uk-label-danger">Required</div>
+    
+        <div class="uk-card-header">
+          <h2 class="uk-card-title">2. Select desired width and height</h2>
+        </div>
+    
+        <div class="uk-card-body">
+          <p>Here you can select the desired size of your images (eg. 1200 by 1000 pixels).</p>
+
+          <ul style="list-style-type: none;">
+            <li><input type="radio" name="sizeMode" v-model="sizeMode" value="atMost"/> Resize to at most the given width and height (may be smaller)</li>
+            <li><input type="radio" name="sizeMode" v-model="sizeMode" value="exact"/> Resize to exactly the given width and height (may need to upsize)</li>
+            <li><input type="radio" name="sizeMode" v-model="sizeMode" value="largeAsPossible"/> Keep the size of the selected crop (large as possible)</li>
+          </ul>
+          <input type="text" class="uk-input" placeholder="Desired width" v-model="width" v-bind:disabled="sizeMode === 'largeAsPossible'" />
+          <input type="text" class="uk-input" placeholder="Desired height" v-model="height" v-bind:disabled="sizeMode === 'largeAsPossible'" />
+        </div>
+    
+        <div class="uk-card-footer">
+          <span v-if="isValidSize()" class="uk-badge uk-label uk-label-success"><span uk-icon="check"></span> Success: Scroll down</span>
+        </div>
+    </div>
+
+    <div class="uk-card uk-card-body uk-card-default uk-card-small uk-margin-top">
+        <div class="uk-card-badge uk-label uk-label-danger">Required</div>
+    
+        <div class="uk-card-header">
+          <h2 class="uk-card-title">3. Select target aspect ratio for images</h2>
+        </div>
+    
+        <div class="uk-card-body">
+          <p>Here you can select your desired aspect ratio. Common aspect ratios are 1:1 (square), 4:3 and 16:10.</p>
+          <p>If you have a desired width and height for your images you can enter that here (eg. 1000 by 800).</p>
+
+          <input type="text" placeholder="Aspect ratio width" v-model="aspectRatioWidth" size="5" />
+          <strong>:</strong>
+          <input type="text" placeholder="Aspect ratio height" v-model="aspectRatioHeight" size="5" />
+        </div>
+    
+        <div class="uk-card-footer">
+          <span v-if="isValidAspectRatio()" class="uk-badge uk-label uk-label-success"><span uk-icon="check"></span> Success: Scroll down</span>
+        </div>
+    </div>
+
+    <div class="uk-card uk-card-body uk-card-default uk-card-small uk-margin-top">
+        <div class="uk-card-badge uk-label uk-label-danger">Required</div>
+    
+        <div class="uk-card-header">
+          <h2 class="uk-card-title">4. Select cropping mask for each image</h2>
+        </div>
+    
+        <div class="uk-card-body">
+          <div style="display: inline-block; height: 3em; min-width: 10em;"><button class="uk-button uk-button-primary" v-on:click="nextImage(1)" v-show="isHaveNext()">Next Image</button></div>
+          <div style="display: inline-block; height: 3em; min-width: 10em;"><button class="uk-button" v-on:click="prevImage()" v-show="isHavePrev()">Back</button></div>
+
+          <div id="image-cropper" style="max-height: 90vh; min-height: 90vh;">
+
+          </div>
+        </div>
+    
+        <div class="uk-card-footer">
+            TODO
+          <span v-if="isValidAspectRatio()" class="uk-badge uk-label uk-label-success"><span uk-icon="check"></span> Success: Scroll down</span>
+        </div>
+    </div>
+
+
+
+
+
+
+
+  </div>
+</body>
+</html>
