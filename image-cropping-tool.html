@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -39,6 +40,14 @@
   <script>
     $(document).ready(function() {
       var cropper = null;
+      var w = new Worker('./zip-web-worker.js');
+
+      w.onmessage = function(e) {
+        var blob = new Blob([e.data.zip], { type: 'application/zip' });
+        cropapp.downloadUrl = URL.createObjectURL(blob);
+        cropapp.inProgress = false;
+      };
+
       var cropapp = new Vue({
         el: '#myapp',
         data: {
@@ -49,7 +58,10 @@
             height: 1000,
             imageIndex: -1,
             fileQueue: [],
-            completedList: []
+            cropWidth: 0,
+            cropHeight: 0,
+            downloadUrl: null,
+            inProgress: false
         },
         methods: {
             isValidAspectRatio: function() {
@@ -67,19 +79,78 @@
             isHaveNext: function() {
                 return this.haveImages() && this.imageIndex < this.fileQueue.length - 1;
             },
+            isHaveFirst: function() {
+                return this.haveImages() && this.imageIndex >= 0;
+            },
             updateFileQueue: function() {
                 var files = $('#files')[0].files;
                 for (var i = 0; i < files.length; i++) {
                     this.fileQueue.push({ file: files[i], data: null });
                 }
             },
+            createZip: function() {
+                var onBlobSave = function() {
+                  var blobQueue = [];
+
+                  for (var i = 0; i < cropapp.fileQueue.length; i++) {
+                    if (cropapp.fileQueue[i].blob) {
+                        blobQueue.push({ blob: cropapp.fileQueue[i].blob, fileName: cropapp.fileQueue[i].file.name });
+                    }
+                  }
+                  w.postMessage(blobQueue);
+                };
+
+                if (this.downloadUrl) {
+                    URL.revokeObjectURL(this.downloadUrl);
+                    this.downloadUrl = null;
+                }
+
+                this.inProgress = true;
+                this.processImage(onBlobSave);
+            },
             prevImage: function() {
                this.nextImage(-1);
             },
-            nextImage: function(incr) {
+            processImage: function(cb) {
                 if (cropper) {
+                    var queueObj = this.fileQueue[this.imageIndex];
+
                     var dt = cropper.getData();
-                    this.fileQueue[this.imageIndex].data = dt;
+                    queueObj.data = dt;
+
+                    var cw, ch;
+                    if (this.sizeMode === 'atMost') {
+                       cw = Math.min(this.cropWidth, this.width);
+                       ch = Math.min(this.cropHeight, this.height);
+                    } else if (this.sizeMode === 'exact') {
+                       cw = this.width;
+                       ch = this.height;
+                    } else {
+                        cw = this.cropWidth;
+                        ch = this.cropHeight;
+                    }
+
+                    var isJpeg = /(\\.jpg)|(\\.jpeg)/.test(queueObj.file.name);
+                    cropapp.inProgress = true;
+
+                    cropper.getCroppedCanvas({
+                      width: cw,
+                      height: ch,
+                      imageSmoothingEnabled: !isJpeg,
+                      imageSmoothingQuality: 'high'
+                    }).toBlob(function(blob) {
+                      queueObj.blob = blob;
+                      cropapp.inProgress = false;
+                      if (cb) {
+                          cb();
+                      }
+                    }, isJpeg ? 'image/jpeg' : 'image/png');
+                }
+            },
+            nextImage: function(incr) {
+                this.processImage();
+
+                if (cropper) {
                     cropper.destroy();
                 }
 
@@ -98,10 +169,18 @@
                      cropper = new Cropper(img, {
                         viewMode: 2,
                         aspectRatio: cropapp.aspectRatioWidth / cropapp.aspectRatioHeight,
-                        data: imageData
+                        data: imageData,
+                        crop: function(e) {
+                          cropapp.cropWidth = Math.floor(e.detail.width);
+                          cropapp.cropHeight = Math.floor(e.detail.height);
+                        },
+                        ready: function() {
+                          cropapp.inProgress = false;
+                        }
                      });
                 }
 
+                cropapp.inProgress = true;
                 fr.readAsDataURL(imageFile);
 
                 $('#image-cropper').empty();
@@ -168,7 +247,7 @@
         </div>
     </div>
 
-    <div class="uk-card uk-card-body uk-card-default uk-card-small uk-margin-top">
+    <div v-show="sizeMode === 'largeAsPossible'" class="uk-card uk-card-body uk-card-default uk-card-small uk-margin-top">
         <div class="uk-card-badge uk-label uk-label-danger">Required</div>
     
         <div class="uk-card-header">
@@ -193,21 +272,24 @@
         <div class="uk-card-badge uk-label uk-label-danger">Required</div>
     
         <div class="uk-card-header">
-          <h2 class="uk-card-title">4. Select cropping mask for each image</h2>
+          <h2 class="uk-card-title">Select cropping mask for each image
+            <div uk-spinner v-if="inProgress"></div>
+          </h2>
         </div>
     
         <div class="uk-card-body">
           <div style="display: inline-block; height: 3em; min-width: 10em;"><button class="uk-button uk-button-primary" v-on:click="nextImage(1)" v-show="isHaveNext()">Next Image</button></div>
           <div style="display: inline-block; height: 3em; min-width: 10em;"><button class="uk-button" v-on:click="prevImage()" v-show="isHavePrev()">Back</button></div>
+          <div style="display: inline-block;">Crop size: {{ cropWidth }} x {{ cropHeight }}</div>
+          <div style="display: inline-block; height: 3em; min-width: 10em;"><button class="uk-button uk-button-primary" v-on:click="createZip()" v-show="isHaveFirst()">Create zip with cropped images</button></div>
+          <div style="display: inline-block; height: 3em;"><a v-show="downloadUrl" v-bind:href="downloadUrl" download="cropped-images.zip">Download zip</a></div>
 
-          <div id="image-cropper" style="max-height: 90vh; min-height: 90vh;">
+          <div id="image-cropper" style="max-height: 80vh; min-height: 80vh;">
 
           </div>
         </div>
     
         <div class="uk-card-footer">
-            TODO
-          <span v-if="isValidAspectRatio()" class="uk-badge uk-label uk-label-success"><span uk-icon="check"></span> Success: Scroll down</span>
         </div>
     </div>
 
