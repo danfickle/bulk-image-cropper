@@ -97,14 +97,24 @@
             downloadUrl: null,
             inProgress: false,
             readyCount: 0,
-            dropTimeout: null
+            dropTimeout: null,
+
+            // TODO: Add optional sample images.
+            sampleImages: []
+            // sampleImages: ['bill-jelen-rocket.jpg', 'iulian-m-boat.jpg']
         },
         methods: {
             isValidAspectRatio: function() {
-                return true; // TODO
+                var w = parseInt(this.aspectRatioWidth, 10);
+                var h = parseInt(this.aspectRatioHeight, 10);
+
+                return isFinite(w) && isFinite(h) && w > 0 && h > 0;
             },
             isValidSize: function() {
-                return true; // TODO
+                var w = parseInt(this.width, 10);
+                var h = parseInt(this.height, 10);
+
+                return isFinite(w) && isFinite(h) && w > 0 && h > 0;
             },
             haveImages: function() {
                 return this.fileQueue.length > 0;
@@ -118,8 +128,39 @@
             isHaveFirst: function() {
                 return this.haveImages() && this.imageIndex >= 0;
             },
+            addSampleImage: function(url, existing) {
+                var upload = new XMLHttpRequest();
+                upload.responseType = 'blob';
+
+                upload.onload = function() {
+                  var blob = upload.response;
+                  cropapp.addFile(blob, existing, url);
+                };
+
+                upload.open('GET', url, true);
+                upload.send();
+            },
+            addSampleImages: function(ev) {
+                ev.preventDefault();
+                var existing = this.createExistingSet();
+                for (var i = 0; i < this.sampleImages.length; i++) {
+                    this.addSampleImage(this.sampleImages[i], existing);
+                }
+            },
             dragOver: function(ev) {
                 ev.preventDefault();
+            },
+            testAdd: function(file, existing) {
+                if (/(.jpg)|(.png)|(.gif)|(.jpeg)/.test(file.name.toLowerCase())) {
+                    cropapp.addFile(file, existing, file.name);
+                    $('#drophere div').css('opacity', 1);
+                    if (cropapp.dropTimeout) {
+                        clearTimeout(cropapp.dropTimeout);
+                    }
+                    cropapp.dropTimeout = setTimeout(function() {
+                        $('#drophere div').css('opacity', 0);
+                    }, 1000);
+                }
             },
             dropFiles: function(ev) {
                 ev.preventDefault();
@@ -128,53 +169,30 @@
                 if (ev.dataTransfer.items) {
                   // Use DataTransferItemList interface to access the file(s)
                   for (var i = 0; i < ev.dataTransfer.items.length; i++) {
-                    // If dropped items aren't files, reject them
                     if (ev.dataTransfer.items[i].kind === 'file') {
                       var file = ev.dataTransfer.items[i].getAsFile();
-                      var x = 'ss'.t
-                      if (/(.jpg)|(.png)|(.gif)|(.jpeg)/.test(file.name.toLowerCase())) {
-                        cropapp.addFile(file, existing);
-                        $('#drophere div').css('opacity', 1.0);
-                        if (cropapp.dropTimeout) {
-                          clearTimeout(cropapp.dropTimeout);
-                          cropapp.dropTimeout = null;
-                        }
-                        cropapp.dropTimeout = setTimeout(function() {
-                           $('#drophere div').css({ opacity: 0 });
-                        }, 1000);
-
-                      }
+                      cropapp.testAdd(file, existing);
                     }
                   }
                 } else {
                     // Use DataTransfer interface to access the file(s)
                     for (var i = 0; i < ev.dataTransfer.files.length; i++) {
                       var file = ev.dataTransfer.files[i];
-                      if (/(.jpg)|(.png)|(.gif)|(.jpeg)/.test(file.name.toLowerCase())) {
-                        cropapp.addFile(file, existing);
-                        $('#drophere div').css('opacity', 1.0);
-                        if (cropapp.dropTimeout) {
-                          clearTimeout(cropapp.dropTimeout);
-                          cropapp.dropTimeout = null;
-                        }
-                        cropapp.dropTimeout = setTimeout(function() {
-                           $('#drophere div').css({ opacity: 0 });
-                        }, 1000);
-                      }
+                      cropapp.testAdd(file, existing);
                     }
                 }
             },
-            addFile: function(file, existingSet) {
-              if (existingSet[file.name]) {
+            addFile: function(file, existingSet, fileName) {
+              if (existingSet[fileName]) {
                   return; // Do not allow duplicates.
               }
 
-              this.fileQueue.push({ file: file, data: null });
+              this.fileQueue.push({ file: file, data: null, fileName: fileName });
             },
             createExistingSet: function() {
                 var existing = {};
                 for (var j = 0; j < cropapp.fileQueue.length; j++) {
-                    existing[cropapp.fileQueue[j].file.name] = true;
+                    existing[cropapp.fileQueue[j].fileName] = true;
                 }
                 return existing;
             },
@@ -183,7 +201,7 @@
                 var files = $('#files')[0].files;
 
                 for (var i = 0; i < files.length; i++) {
-                    cropapp.addFile(files[i], existing);
+                    cropapp.addFile(files[i], existing, files[i].name);
                 }
             },
             createZip: function() {
@@ -192,7 +210,7 @@
 
                   for (var i = 0; i < cropapp.fileQueue.length; i++) {
                     if (cropapp.fileQueue[i].blob) {
-                        blobQueue.push({ blob: cropapp.fileQueue[i].blob, fileName: cropapp.fileQueue[i].file.name });
+                        blobQueue.push({ blob: cropapp.fileQueue[i].blob, fileName: cropapp.fileQueue[i].fileName });
                     }
                   }
 
@@ -241,7 +259,7 @@
                         ch = this.cropHeight;
                     }
 
-                    var isJpeg = /(\\.jpg)|(\\.jpeg)/.test(queueObj.file.name);
+                    var isJpeg = /(\\.jpg)|(\\.jpeg)/.test(queueObj.fileName.toLowerCase());
                     cropapp.inProgress = true;
 
                     cropper.getCroppedCanvas({
@@ -318,9 +336,27 @@
   </script>
 </head>
 <body>
+  <div class="uk-container">
+    <div class="uk-card uk-card-body uk-card-default uk-card-small uk-margin-top">
+      <div class="uk-card-header">
+        <h1 class="uk-card-title">In-browser bulk image cropping tool</h1>
+      </div>
+
+      <div class="uk-card-body">
+        <p>This free online tool allows you to mass crop images, using a custom crop mask for each image.</p>
+        <p>All the work is done in the browser, no images are uploaded to a server, and at the end you will
+           be able to download a zip file containing your cropped images.</p>
+        <p>Based on open-source software <a href="TODO">available at Github</a>.</p>
+      </div>
+    </div>
+  </div>
+     
+
+
+
   <div class="uk-container" id="myapp">
     <div class="uk-card uk-card-body uk-card-default uk-card-small uk-margin-top">
-        <div class="uk-card-badge uk-label uk-label-danger">Required</div>
+        <div class="uk-card-badge uk-label uk-label-danger"><span uk-icon="lock"></span> Required</div>
     
         <div class="uk-card-header">
           <h2 class="uk-card-title">1. Select images to crop / resize</h2>
@@ -328,14 +364,16 @@
     
         <div class="uk-card-body">
             <p>Select as many images as you like from your computer. They are not uploaded to a server (cropping is done in the browser).</p>
-            <p>If you have a low-memory device (eg. iPhone), you may wish to process the images in batches.</p>
+            <p>If you have a low-memory device (eg. iPhone), you may wish to download a zip file after every 20 or so images.</p>
 
             <input type="file" id="files" multiple="" accept="image/*" v-on:change="updateFileQueue" />
+            <a v-if="sampleImages.length" href="#" v-on:click="addSampleImages">Use sample images</a>
 
             <div id="drophere" v-on:drop="dropFiles" v-on:dragover="dragOver" style="position: relative;">
                <div></div>
                <span style="position: absolute; width: 100%; top: 20px; left: 0; display: block; text-align: center;">
-                 Drop images here...
+                <span uk-icon="icon: image; ratio: 2"></span><br/>
+                Drop images here...
                </span>
             </div>
             <div style="text-align: center;">
@@ -349,7 +387,7 @@
     </div>
 
     <div class="uk-card uk-card-body uk-card-default uk-card-small uk-margin-top">
-        <div class="uk-card-badge uk-label uk-label-danger">Required</div>
+        <div class="uk-card-badge uk-label uk-label-danger"><span uk-icon="lock"></span> Required</div>
     
         <div class="uk-card-header">
           <h2 class="uk-card-title">2. Select desired width and height</h2>
@@ -369,11 +407,12 @@
     
         <div class="uk-card-footer">
           <span v-if="isValidSize()" class="uk-badge uk-label uk-label-success"><span uk-icon="check"></span> Success: Scroll down</span>
+          <span v-if="!isValidSize()" class="uk-badge uk-label uk-label-danger"><span uk-icon="warning"></span> Invalid size</span>
         </div>
     </div>
 
     <div v-show="sizeMode === 'largeAsPossible'" class="uk-card uk-card-body uk-card-default uk-card-small uk-margin-top">
-        <div class="uk-card-badge uk-label uk-label-danger">Required</div>
+        <div class="uk-card-badge uk-label uk-label-danger"><span uk-icon="lock"></span> Required</div>
     
         <div class="uk-card-header">
           <h2 class="uk-card-title">3. Select target aspect ratio for images</h2>
@@ -390,28 +429,29 @@
     
         <div class="uk-card-footer">
           <span v-if="isValidAspectRatio()" class="uk-badge uk-label uk-label-success"><span uk-icon="check"></span> Success: Scroll down</span>
+          <span v-if="!isValidAspectRatio()" class="uk-badge uk-label uk-label-danger"><span uk-icon="warning"></span> Invalid aspect ratio</span>
         </div>
     </div>
 
     <div class="uk-card uk-card-body uk-card-default uk-card-small uk-margin-top">
-        <div class="uk-card-badge uk-label uk-label-danger">Required</div>
+        <div class="uk-card-badge uk-label uk-label-danger"><span uk-icon="lock"></span> Required</div>
     
         <div class="uk-card-header">
-          <h2 class="uk-card-title">Select cropping mask for {{ Math.min(fileQueue.length - readyCount + 1, fileQueue.length) }} images
+          <h2 class="uk-card-title">Select cropping mask for {{ fileQueue.length }} images
             <div uk-spinner v-if="inProgress"></div>
           </h2>
         </div>
     
         <div class="uk-card-body">
           <div id="controls">
-            <div><button class="uk-button uk-button-primary" v-on:click="nextImage(1)" v-bind:disabled="!isHaveNext()">{{ imageIndex === -1 ? 'Start' : 'Next Image' }}</button></div>
-            <div><button class="uk-button uk-button-primary" v-on:click="prevImage()" v-bind:disabled="!isHavePrev()">Back</button></div>
+            <div><button class="uk-button uk-button-primary" v-on:click="nextImage(1)" v-bind:disabled="!isHaveNext()"><span uk-icon="arrow-right"></span> {{ imageIndex === -1 ? 'Start' : 'Next Image' }}</button></div>
+            <div><button class="uk-button uk-button-primary" v-on:click="prevImage()" v-bind:disabled="!isHavePrev()"><span uk-icon="arrow-left"></span> Back</button></div>
             <div style="padding: 0 8px; vertical-align: top; border-left: 1px solid white;" v-if="imageIndex !== -1">
-              <div><strong>{{ fileQueue[imageIndex].file.name }}</strong></div>
+              <div><strong>{{ fileQueue[imageIndex].fileName }}</strong></div>
               <div>Crop size: {{ cropWidth }} x {{ cropHeight }}</div>
             </div>
-            <div><button class="uk-button uk-button-primary" v-on:click="createZip()" v-bind:disabled="!isHaveFirst()">Create zip with {{ readyCount }} cropped images</button></div>
-            <div><a v-if="downloadUrl" v-bind:href="downloadUrl" download="cropped-images.zip" class="uk-button uk-button-primary">Download zip</a></div>
+            <div><button class="uk-button uk-button-primary" v-on:click="createZip()" v-bind:disabled="!isHaveFirst()"><span uk-icon="folder"></span> Create zip with {{ readyCount }} cropped images</button></div>
+            <div><a v-if="downloadUrl" v-bind:href="downloadUrl" download="cropped-images.zip" class="uk-button uk-button-primary"><span uk-icon="download"></span> Download zip</a></div>
           </div>
 
           <div id="image-cropper" style="max-height: 80vh; min-height: 80vh;">
@@ -419,7 +459,8 @@
           </div>
         </div>
     
-        <div class="uk-card-footer">
+        <div class="uk-card-footer" style="text-align: center;">
+            Based on <a href="TODO">open-source bulk image cropper</a>.
         </div>
     </div>
 
