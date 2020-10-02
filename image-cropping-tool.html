@@ -259,21 +259,30 @@
                         ch = this.cropHeight;
                     }
 
-                    var isJpeg = /(\\.jpg)|(\\.jpeg)/.test(queueObj.fileName.toLowerCase());
+                    var isJpeg = /(^.)*(.jpg)|(.jpeg)/.test(queueObj.fileName.toLowerCase());
                     cropapp.inProgress = true;
 
-                    cropper.getCroppedCanvas({
-                      width: cw,
-                      height: ch,
-                      imageSmoothingEnabled: !isJpeg,
-                      imageSmoothingQuality: 'high'
-                    }).toBlob(function(blob) {
+                    var next = function(blob) {
                       queueObj.blob = blob;
                       cropapp.inProgress = false;
                       if (cb) {
                           cb();
                       }
-                    }, isJpeg ? 'image/jpeg' : 'image/png');
+                    };
+
+                    var canvas = cropper.getCroppedCanvas({
+                      width: cw,
+                      height: ch,
+                      /* Enable image smoothing if we are upsizing. */
+                      imageSmoothingEnabled: cropapp.sizeMode === 'exact' && (cropapp.cropWidth < cropapp.width || cropapp.cropHeight < cropapp.height),
+                      imageSmoothingQuality: 'low'
+                    });
+
+                    if (isJpeg) {
+                      canvas.toBlob(next, 'image/jpeg');
+                    } else {
+                      canvas.toBlob(next, 'image/png');
+                    }
                 }
             },
             nextImage: function(incr) {
@@ -471,5 +480,6 @@
 
 
   </div>
+  <!-- TODO: Cookie notice if required. -->
 </body>
 </html>
