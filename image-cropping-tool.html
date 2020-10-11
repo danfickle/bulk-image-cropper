@@ -259,7 +259,7 @@
                         ch = this.cropHeight;
                     }
 
-                    var isJpeg = /(^.)*(.jpg)|(.jpeg)/.test(queueObj.fileName.toLowerCase());
+                    var isJpeg = /[^\.]*(\.jpg)|(\.jpeg)$/.test(queueObj.fileName.toLowerCase());
                     cropapp.inProgress = true;
 
                     var next = function(blob) {
@@ -356,6 +356,19 @@
         <p>All the work is done in the browser, no images are uploaded to a server, and at the end you will
            be able to download a zip file containing your cropped images.</p>
         <p>Based on open-source software <a href="TODO">available at Github</a>.</p>
+        <p>Known to work on:
+           <ul>
+               <li>Firefox (desktop)</li>
+               <li>Chrome (desktop, Android)</li>
+               <li>Safari (desktop, iOS, iPadOS)</li>
+               <li>Edge (desktop)</li>
+           </ul>
+        </p>
+        <p>Known <strong>not</strong> to work on:
+        <ul>
+            <li>Chrome (iOS, iPadOS) - Use Safari instead</li>
+        </ul>
+        </p>
       </div>
     </div>
   </div>
