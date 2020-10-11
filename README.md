@@ -12,7 +12,9 @@ When they are finished customizing the cropping masks they create and download a
 + Optionally, open `image-cropping-tool.html` in a text editor and search for `TODO` to make any changes you require. For example, you could add some sample images.
 
 ## License
-MIT license, although I would appreciate a link back to this repository.
+MIT license, although I would appreciate a link back to this repository:
+
+https://github.com/danfickle/bulk-image-cropper
 
 ## Dependencies
 + The main work of customizing the cropping masks and cropping/resizing images is done by the excellent [cropper.js](https://github.com/fengyuanchen/cropperjs).
