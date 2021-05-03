@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <!-- TODO: Analytics should go here if required. -->
 
-  <title>Online bulk image cropping tool (free)</title>
+  <title>Online bulk image cropping tool (free &amp; open-source)</title>
 
-  <meta name="description" content="An online (in-browser) tool to batch crop and resize images using a custom crop mask for each image. Download in a zip.">
+  <meta name="description" content="A free online (in-browser) tool to batch crop and resize images using a custom crop mask for each image. Download in a zip.">
 
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -72,6 +72,12 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.7/cropper.min.js" integrity="sha512-N4T9zTrqZUWCEhVU2uD0m47ADCWYRfEGNQ+dx/lYdQvOn+5FJZxcyHOY68QKsjTEC7Oa234qhXFhjPGQu6vhqg==" crossorigin="anonymous"></script>
 
   <script>
+  (function() {
+    // TODO: Add optional sample images.
+    var sampleImages = [];
+    // sampleImages = ['bill-jelen-rocket.jpg', 'iulian-m-boat.jpg'];
+    var sampleImagesFolder = 'sample-images/';
+
     $(document).ready(function() {
       var cropper = null;
       var w = new Worker('./zip-web-worker.js');
@@ -98,10 +104,9 @@
             inProgress: false,
             readyCount: 0,
             dropTimeout: null,
-
-            // TODO: Add optional sample images.
-            sampleImages: []
-            // sampleImages: ['bill-jelen-rocket.jpg', 'iulian-m-boat.jpg']
+            sampleImages: sampleImages,
+            sampleImagesFolder: sampleImagesFolder,
+            sampleImagesAvailable: 0
         },
         methods: {
             isValidAspectRatio: function() {
@@ -128,6 +133,9 @@
             isHaveFirst: function() {
                 return this.haveImages() && this.imageIndex >= 0;
             },
+            sampleImagesLoaded: function() {
+              return this.sampleImages.length <= this.sampleImagesAvailable;
+            },
             addSampleImage: function(url, existing) {
                 var upload = new XMLHttpRequest();
                 upload.responseType = 'blob';
@@ -135,13 +143,18 @@
                 upload.onload = function() {
                   var blob = upload.response;
                   cropapp.addFile(blob, existing, url);
+                  cropapp.sampleImagesAvailable++;
                 };
 
-                upload.open('GET', url, true);
+                upload.open('GET', this.sampleImagesFolder + url, true);
                 upload.send();
             },
             addSampleImages: function(ev) {
                 ev.preventDefault();
+                if (this.sampleImagesAvailable > 0) {
+                  return;
+                }
+
                 var existing = this.createExistingSet();
                 for (var i = 0; i < this.sampleImages.length; i++) {
                     this.addSampleImage(this.sampleImages[i], existing);
@@ -342,6 +355,7 @@
         }
       });
     });
+  })();
   </script>
 </head>
 <body>
@@ -378,7 +392,8 @@
 
   <div class="uk-container" id="myapp">
     <div class="uk-card uk-card-body uk-card-default uk-card-small uk-margin-top">
-        <div class="uk-card-badge uk-label uk-label-danger"><span uk-icon="lock"></span> Required</div>
+        <div v-if="haveImages()"  class="uk-card-badge uk-label uk-label-success"><span uk-icon="check"></span> Success: Scroll down</div>
+        <div v-if="!haveImages()" class="uk-card-badge uk-label uk-label-danger"><span uk-icon="lock"></span> Required</div>
     
         <div class="uk-card-header">
           <h2 class="uk-card-title">1. Select images to crop / resize</h2>
@@ -389,7 +404,7 @@
             <p>If you have a low-memory device (eg. iPhone), you may wish to download a zip file after every 20 or so images.</p>
 
             <input type="file" id="files" multiple="" accept="image/*" v-on:change="updateFileQueue" />
-            <a v-if="sampleImages.length" href="#" v-on:click="addSampleImages">Use sample images</a>
+            <a v-if="sampleImages.length" href="#" v-on:click="addSampleImages" v-bind:style="{ opacity: sampleImagesLoaded() ? 0.4 : 1 }">Use sample images <span v-if="sampleImagesLoaded()" uk-icon="check"></span></a>
 
             <div id="drophere" v-on:drop="dropFiles" v-on:dragover="dragOver" style="position: relative;">
                <div></div>
@@ -409,7 +424,8 @@
     </div>
 
     <div class="uk-card uk-card-body uk-card-default uk-card-small uk-margin-top">
-        <div class="uk-card-badge uk-label uk-label-danger"><span uk-icon="lock"></span> Required</div>
+        <div v-if="isValidSize()"  class="uk-card-badge uk-label uk-label-success"><span uk-icon="check"></span> Success: Scroll down</div>
+        <div v-if="!isValidSize()" class="uk-card-badge uk-label uk-label-danger"><span uk-icon="lock"></span> Required</div>
     
         <div class="uk-card-header">
           <h2 class="uk-card-title">2. Select desired width and height</h2>
@@ -434,7 +450,8 @@
     </div>
 
     <div v-show="sizeMode === 'largeAsPossible'" class="uk-card uk-card-body uk-card-default uk-card-small uk-margin-top">
-        <div class="uk-card-badge uk-label uk-label-danger"><span uk-icon="lock"></span> Required</div>
+        <div v-if="isValidAspectRatio()"  class="uk-card-badge uk-label uk-label-success"><span uk-icon="check"></span> Success: Scroll down</div>
+        <div v-if="!isValidAspectRatio()" class="uk-card-badge uk-label uk-label-danger"><span uk-icon="lock"></span> Required</div>
     
         <div class="uk-card-header">
           <h2 class="uk-card-title">3. Select target aspect ratio for images</h2>
